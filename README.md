@@ -29,12 +29,34 @@
 ## 📁 Project Structure
 
 ```protobuf
-├── app.py # Main Streamlit application
-├── aoi_bangladesh.geojson # Area of interest polygon
-├── adm3.geojson # Admin boundaries for zonal stats
-├── bgd_pop_2025.tif # Child population raster (e.g., from WorldPop)
-├── utils/ # (Optional) Utility modules for data handling
-└── README.md # Project overview
+cw-ris/
+├── app.py                         # 🔵 Main Streamlit entrypoint
+├── requirements.txt               # 📦 Python dependencies
+├── README.md                      # 📘 Project overview
+
+├── config/
+│   └── settings.py                # ⚙️ File paths and constants
+
+├── data/
+│   ├── downloader.py              # 🌐 ERA5 wind downloader via CDS API
+│   └── validator.py              # ✅ File presence & CDS API checks
+
+├── logic/
+│   ├── wind_handler.py            # 💨 Wind speed calculation from U/V
+│   └── exposure.py                # 👶 Population × wind risk computation
+
+├── ui/
+│   ├── map_display.py             # 🗺️ Map rendering with OSM layers
+│   └── sidebar.py                 # 📚 Sidebar with instructions
+
+├── utils/
+│   └── cleanup.py                 # 🧹 Temp file cleanup utility
+
+├── assets/                        # 🗂️ Static geospatial inputs
+│   ├── aoi_bangladesh.geojson     # 🟡 AOI polygon
+│   ├── adm3.geojson               # 🟢 Admin boundaries for stats
+│   ├── bgd_pop_2025_CN_100m.tif   # 👶 Child population raster
+
 ```
 
 ---
