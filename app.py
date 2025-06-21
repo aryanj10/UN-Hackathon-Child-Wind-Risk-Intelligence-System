@@ -13,6 +13,8 @@ from logic.exposure import compute_child_exposure
 from ui.map_display import render_risk_map
 from ui.sidebar import render_sidebar
 from utils.cleanup import cleanup_files
+from logic.school_density import compute_school_density
+from logic.hospital_access import compute_hospital_access
 
 # --- Streamlit Page Setup --- #
 st.set_page_config(page_title="CW-RIS: Child Wind Risk Viewer", layout="wide")
@@ -62,22 +64,45 @@ if st.button("Get Latest Wind + Vulnerability Data", disabled=(not cds_ok or boo
                 # Zonal stats
                 zs = zonal_stats(admin_gdf, exposure_tif, stats=["sum"], geojson_out=True, nodata=np.nan)
                 risk_gdf = gpd.GeoDataFrame.from_features(zs).rename(columns={"sum": "Child Wind Risk"})
+                admin_gdf = compute_school_density(admin_gdf, "assets/schools_hdx.geojson")
+                admin_gdf = compute_hospital_access(admin_gdf, "assets/hospitals_hdx.geojson")
 
+                # Join back with zonal stats DataFrame
+                risk_gdf = risk_gdf.merge(
+                    admin_gdf[["School_Count", "Hospital_Access_Factor"]],
+                    left_index=True, right_index=True
+                )
+
+                # Final composite risk score
+                risk_gdf["Final Risk Score"] = (
+                    risk_gdf["Child Wind Risk"] *
+                    (1 + risk_gdf["School_Count"] / risk_gdf["School_Count"].max()) *
+                    (1 - risk_gdf["Hospital_Access_Factor"])
+                )
                 # Render map
                 st.subheader("🗺️ Child Wind Risk Map")
-                m, max_risk = render_risk_map(risk_gdf)
+                m, max_risk = render_risk_map(risk_gdf, score_column="Final Risk Score")
                 m.to_streamlit(height=600)
 
+                nan_count = (risk_gdf["Child Wind Risk"] == 0).sum()
+                if nan_count > 0:
+                    st.warning(f"{nan_count} regions had zero child wind exposure. These are likely outside the wind data bounds or lack population.")
+
                 # Stats
-                st.subheader("📊 Risk Statistics")
+# Update max_risk to Final Risk Score max
+                max_risk = risk_gdf["Final Risk Score"].max()
+
+                # Updated statistics
+                st.subheader("📊 Composite Risk Statistics")
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.metric("Total Areas Analyzed", len(risk_gdf))
                 with col2:
-                    st.metric("Maximum Risk Score", f"{max_risk:.2f}" if not np.isnan(max_risk) else "N/A")
+                    st.metric("Max Final Risk Score", f"{max_risk:.2f}" if not np.isnan(max_risk) else "N/A")
                 with col3:
-                    mean_risk = risk_gdf["Child Wind Risk"].mean()
-                    st.metric("Average Risk Score", f"{mean_risk:.2f}" if not np.isnan(mean_risk) else "N/A")
+                    mean_risk = risk_gdf["Final Risk Score"].mean()
+                    st.metric("Mean Final Risk Score", f"{mean_risk:.2f}" if not np.isnan(mean_risk) else "N/A")
+
 
                 # Cleanup
                 cleanup_files([U_TIF, V_TIF, exposure_tif])

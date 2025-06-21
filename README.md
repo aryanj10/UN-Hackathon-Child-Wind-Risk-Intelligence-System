@@ -1,6 +1,6 @@
 # 🌪️ CW-RIS: Child Wind Risk Intelligence System
 
-**CW-RIS** is a child-centered wind risk analysis app that overlays real-time ECMWF ERA5 wind forecast data with child population exposure (e.g., from WorldPop) to compute and visualize risk zones. This Streamlit app enables faster, data-driven decisions for humanitarian response and preparedness.
+**CW-RIS** is a child-centered wind risk analysis app that overlays real-time ECMWF ERA5 wind forecast data with child population exposure (e.g., from WorldPop), school density, and hospital accessibility to compute and visualize risk zones. This Streamlit app enables faster, data-driven decisions for humanitarian response and preparedness.
 
 ---
 
@@ -11,6 +11,7 @@
 - ✅ Clips and reprojects child population raster to match wind data
 - ✅ Multiplies wind × population to produce a child wind risk raster
 - ✅ Aggregates exposure using zonal statistics (by admin boundaries)
+- ✅ Enhances risk by factoring in school density and hospital proximity
 - ✅ Displays an interactive map with high-risk areas highlighted
 
 ---
@@ -20,15 +21,17 @@
 - 📡 **Live ERA5 Wind Data** via Copernicus CDS API
 - 💨 **Wind Magnitude Calculation**: `sqrt(U^2 + V^2)`
 - 👶 **Child Exposure Mapping** using population rasters
+- 🏫 **School Density Scoring** using HDX education site data
+- 🏥 **Hospital Accessibility Scoring** using proximity buffers
 - 🗺️ **Zonal Risk Statistics** per admin region
 - 🖱️ **Interactive Map** with hover tooltips (Leafmap/Folium)
-- 🔍 **Auto-Zoom to Highest Risk Zones**
+- 📈 **Final Composite Risk Score** for decision support
 
 ---
 
 ## 📁 Project Structure
 
-```protobuf
+```bash
 cw-ris/
 ├── app.py                         # 🔵 Main Streamlit entrypoint
 ├── requirements.txt               # 📦 Python dependencies
@@ -39,14 +42,16 @@ cw-ris/
 
 ├── data/
 │   ├── downloader.py              # 🌐 ERA5 wind downloader via CDS API
-│   └── validator.py              # ✅ File presence & CDS API checks
+│   └── validator.py               # ✅ File presence & CDS API checks
 
 ├── logic/
 │   ├── wind_handler.py            # 💨 Wind speed calculation from U/V
-│   └── exposure.py                # 👶 Population × wind risk computation
+│   ├── exposure.py                # 👶 Population × wind risk computation
+│   ├── school_density.py          # 🏫 Compute school site counts per region
+│   └── hospital_access.py         # 🏥 Compute hospital proximity score
 
 ├── ui/
-│   ├── map_display.py             # 🗺️ Map rendering with OSM layers
+│   ├── map_display.py             # 🗺️ Map rendering with risk score
 │   └── sidebar.py                 # 📚 Sidebar with instructions
 
 ├── utils/
@@ -56,8 +61,21 @@ cw-ris/
 │   ├── aoi_bangladesh.geojson     # 🟡 AOI polygon
 │   ├── adm3.geojson               # 🟢 Admin boundaries for stats
 │   ├── bgd_pop_2025_CN_100m.tif   # 👶 Child population raster
-
+│   ├── schools_hdx.geojson        # 🏫 Education facilities (HDX)
+│   └── hospitals_hdx.geojson      # 🏥 Health facility locations
 ```
+
+---
+
+## 📂 Data Sources
+
+| Dataset                    | Source URL                                                                 |
+|----------------------------|----------------------------------------------------------------------------|
+| 👶 Child Population Raster | [WorldPop 2025](https://hub.worldpop.org/geodata/summary?id=53874)         |
+| 🏥 Health Facilities       | [HDX - Bangladesh Healthsites](https://data.humdata.org/dataset/bangladesh-healthsites) |
+| 🏫 Education Facilities    | [HDX - OSM Bangladesh Education](https://data.humdata.org/dataset/hotosm_bgd_education_facilities) |
+| 🟢 Admin Boundaries (ADM3) | Provided by hackathon organizers                                           |
+| 🟡 AOI for Bangladesh      | Provided by hackathon organizers   
 
 ---
 
@@ -72,25 +90,14 @@ pip install -r requirements.txt
 ### 🔑 Setup: CDS API Key
 
 1.  Register at https://cds.climate.copernicus.eu
-
 2.  Go to your CDS API page
+3.  Save your credentials in a `.cdsapirc` file in your home directory:
 
-3. Save your credentials in a .cdsapirc file or add directly to script:
-
-```python
-c = cdsapi.Client(
-    url="https://cds.climate.copernicus.eu/api",
-    key="your_uid:your_api_key"
-)
+```yaml
+url: https://cds.climate.copernicus.eu/api
+key: your_uid:your_api_key
 ```
 
-### 📂 Input Files Required
-
-| File                       | Description                        |
-| -------------------------- | ---------------------------------- |
-| `aoi_bangladesh.geojson`   | Area of interest polygon           |
-| `adm3.geojson`             | Admin boundaries for zonal stats   |
-| `bgd_pop_2025_CN_100m.tif` | Child population raster (WorldPop) |
 ---
 
 ## ▶️ Run the App
@@ -98,53 +105,46 @@ c = cdsapi.Client(
 ```bash
 streamlit run app.py
 ```
-Open in browser at: http://localhost:8501
+
+Open in your browser at: http://localhost:8501
+
+---
 
 ## 🔄 How It Works
 
-Fetch latest wind forecast (last 5 days)
-
-Compute total wind speed using U and V components
-
-Clip and reproject child population raster to wind CRS
-
-Multiply wind speed × child population to get exposure
-
-Aggregate risk per administrative zone using zonal_stats
-
-Display results on an interactive map
+1. Fetch latest wind forecast (5-day lag)
+2. Compute wind speed using U and V components
+3. Reproject child population to match wind raster
+4. Compute wind × population exposure per pixel
+5. Aggregate by admin regions (zonal stats)
+6. Adjust risk by school density and hospital proximity
+7. Display interactive map with composite risk scores
 
 ---
+
 ## 📊 Example Outputs
 
-- Table ranking admin regions by total child wind risk
-
+- Table ranking admin regions by Final Risk Score
 - Interactive map:
-
-    - Color-coded risk zones
-
-    - Highlighted highest-risk areas
-
-    - Hover for risk value tooltips
+  - Color-coded composite risk zones
+  - Highlighted highest-risk areas
+  - Hover to view region risk breakdown
 
 ---
+
 ## Notes
-CRS assumed to be EPSG:4326 across all layers
 
-Ensure netCDF4 or h5netcdf is installed to read ERA5 .nc files
-
-Reprojection and alignment handled via rasterio.reproject()
+- All spatial layers are assumed in `EPSG:4326`
+- Requires valid CDS API credentials and recent Python packages
+- Raster alignment done using `rasterio.reproject()`
 
 ---
 
 ## Future Plans
 
-Add flood and landslide risk layers
-
-Integrate with CCRI-DRM dashboards via Cloud-Optimized GeoTIFF
-
-Add school and health facility access overlays
-
-Modularize handlers for global use (GIGA-compatible)
+- Add flood and landslide hazard overlays
+- Connect to CCRI-DRM dashboards via GeoTIFF
+- Enable time-based risk forecasting
+- Extend for regional/global scalability
 
 ---
